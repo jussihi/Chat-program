@@ -42,6 +42,24 @@ client* add_client(client* newclient)
 	return NULL;
 }
 
+void send_whisper(char* msg, int send_uid, int recv_uid)
+{
+	return;
+}
+
+void send_priv_serv(char* msg, int uid)
+{
+	for (int i = 0; i < MAXCLIENT; i++)
+	{
+		if(clientarr[i]->userid == uid)
+		{
+			write(clientarr[i]->clientfd, msg, strlen(msg));
+		}
+	}
+}
+
+
+
 //broadcast a message to every client
 void send_all(char* msg)
 {
@@ -67,9 +85,24 @@ void* connection_handler(client* connclient)
 	while((n = read(connclient->clientfd, inbuf, sizeof(inbuf) - 1)) > 0)
 	{
 		inbuf[n] = 0;
-		sprintf(outbuf, "%s:\t%s\n",connclient->name, inbuf);
+		if(strncmp(inbuf, "/name ", 6) == 0)
+		{
+			char oldname[20];
+			strncpy(oldname, connclient->name, 19);
+			oldname[19] = 0;
+			memset(connclient->name, 0, 20);
+			strncpy(connclient->name, (inbuf+6), 19);
+			sprintf(outbuf, "%s changed name to %s\n",oldname, connclient->name);
+		}
+		else
+		{
+			sprintf(outbuf, "%s:\t%s\n",connclient->name, inbuf);
+		}
 		send_all(outbuf);
 	}
+	close(connclient->clientfd);
+	free(connclient);
+	printf("%s closed connection.\n", connclient->name);
 	return NULL;
 }
 

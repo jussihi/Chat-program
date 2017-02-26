@@ -29,7 +29,12 @@ void* message_listener(int* sockfd)
 			wrefresh(output);
 			wrefresh(input);
 		}
+		else if(n == 0)
+		{
+			break;
+		}
 	}
+	return NULL;
 }
 
 int main(void)
@@ -113,11 +118,7 @@ int main(void)
 			else if(strcmp(buffer, "/quit") == 0)
 			{
 				if(ptmsg != 0) pthread_kill(ptmsg, 0);
-				if(sockfd != 0)
-				{
-					shutdown(sockfd, 1);
-					close(sockfd);
-				}
+				if(sockfd != 0) close(sockfd);
 				connection_flag = 0;
 				endwin();
 				return 0;
@@ -132,13 +133,8 @@ int main(void)
 				else
 				{
 					pthread_kill(ptmsg, 0);
-					if(sockfd != 0)
-					{
-						waddstr(output, "Shutting down socket...\n");
-						wrefresh(output);
-						//shutdown(sockfd, 0);
-						close(sockfd);
-					}
+					shutdown(sockfd, 0);
+					if(sockfd != 0) close(sockfd);
 					connection_flag = 0;
 					waddstr(output, "Disconnected...\n");
 					wrefresh(output);
