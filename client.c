@@ -17,24 +17,44 @@ void* message_listener(int* sockfd)
 	char inbuf[1000];
 	wrefresh(output);
 	int n;
+	int err = 0;
 	while(1)
 	{
 		memset(inbuf, 0, 1000);
 		n = read(*sockfd, inbuf, sizeof(inbuf));
 		inbuf[n] = 0;
-		if(n != 0)
+		if(n > 0)
 		{
 			wrefresh(output);
 			waddstr(output, inbuf);
 			wrefresh(output);
 			wrefresh(input);
+			err = 0;
 		}
 		else if(n == 0)
 		{
 			break;
 		}
+		else 
+		{
+			if(err > 20)
+			{
+				connection_flag = -1;
+				break;
+			}
+		}
 	}
 	return NULL;
+}
+
+void close_connection(pthread_t* ptmsg, int* sockfd)
+{
+	if(ptmsg != NULL) pthread_kill(*ptmsg, 0);
+	if(*sockfd != 0) shutdown(*sockfd, 0);
+	if(*sockfd != 0) close(*sockfd);
+	connection_flag = 0;
+	waddstr(output, "Disconnected...\n");
+	wrefresh(output);
 }
 
 int main(void)
@@ -123,7 +143,7 @@ int main(void)
 				endwin();
 				return 0;
 			}
-			else if(strcmp(buffer, "/disconnect") == 0)
+			else if(strcmp(buffer, "/disconnect") == 0 || connection_flag == -1)
 			{
 				if(connection_flag == 0)
 				{
@@ -132,15 +152,10 @@ int main(void)
 				}
 				else
 				{
-					pthread_kill(ptmsg, 0);
-					shutdown(sockfd, 0);
-					if(sockfd != 0) close(sockfd);
-					connection_flag = 0;
-					waddstr(output, "Disconnected...\n");
-					wrefresh(output);
+					close_connection(&ptmsg, &sockfd);
 				}
 			}
-			else if(connection_flag == 1) 
+			else if(connection_flag == 1)
 			{
 				write(sockfd, buffer, strlen(buffer));
 			}

@@ -9,38 +9,65 @@
 #include <sys/types.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include "server.h"
 
 #define MAXCLIENT 40
 #define BUFFER 1000
 
-typedef struct
-{
-	char name[20];
-	int userid;
-	struct sockaddr_in addr;
-	int clientfd;
-}client;
-
-client* clientarr[MAXCLIENT];
 
 static int clients = 0;
 static int userid = 100;
 static int port = 5555;
+clientList cl;
 
-//add a new client to the clientarr-array
-client* add_client(client* newclient)
+
+client* clientList_add(int clientfd, struct sockaddr_in clientaddr)
 {
-	int i = 0;
-	for(; i< MAXCLIENT; i++)
+	client* newclient = malloc(sizeof(client));
+	if(!newclient)
 	{
-		if(clientarr[i] == NULL)
-		{
-			clientarr[i] = newclient;
-			return clientarr[i];
-		}
+		return NULL;
+		printf("ERROR WHEN ADDING USER TO CLIENTARRAY\n");
 	}
-	return NULL;
+	newclient->userid = userid;
+	newclient->clientfd = clientfd;
+	newclient->addr = clientaddr;
+	newclient->next = NULL;
+	sprintf(newclient->name, "%d", newclient->userid);
+	userid++;
+	clients++;
+	printf("Creating new thread for client with user id %d\n", (newclient->userid));
+	if (cl.last)
+		cl.last->next = newclient;
+	cl.last = newclient;
+	if (!cl.first)
+	cl.first = cl.last;
+	return newclient;
 }
+
+void clientList_drop(int id)
+{
+	client* c = cl.first;
+	client* p = NULL;
+	while (c)
+	{
+		if (c->userid == id)
+		{
+		    if (p)
+		        p->next = c->next;
+		    if (c == cl.first)
+		        cl.first = c->next;
+		    if (p && p->next == NULL)
+		        cl.last = p;
+		    free(c);
+		    return;
+		}
+		p = c;
+		c = c->next;
+	}
+	return;
+}
+
 
 void send_whisper(char* msg, int send_uid, int recv_uid)
 {
@@ -49,11 +76,11 @@ void send_whisper(char* msg, int send_uid, int recv_uid)
 
 void send_priv_serv(char* msg, int uid)
 {
-	for (int i = 0; i < MAXCLIENT; i++)
+	for(client* tmp = cl.first; tmp!=NULL; tmp = tmp->next)
 	{
-		if(clientarr[i]->userid == uid)
+		if(tmp->userid == uid)
 		{
-			write(clientarr[i]->clientfd, msg, strlen(msg));
+			write(tmp->clientfd, msg, strlen(msg));
 		}
 	}
 }
@@ -63,13 +90,9 @@ void send_priv_serv(char* msg, int uid)
 //broadcast a message to every client
 void send_all(char* msg)
 {
-	int i = 0;
-	for(; i < MAXCLIENT; i++)
+	for(client* tmp = cl.first; tmp != NULL; tmp = tmp->next)
 	{
-		if(clientarr[i] != NULL)
-		{
-			write(clientarr[i]->clientfd, msg, strlen(msg));
-		}
+		write(tmp->clientfd, msg, strlen(msg));
 	}
 }
 
@@ -80,8 +103,6 @@ void* connection_handler(client* connclient)
 	char inbuf[BUFFER];
 
 	int n;
-		
-
 	while((n = read(connclient->clientfd, inbuf, sizeof(inbuf) - 1)) > 0)
 	{
 		inbuf[n] = 0;
@@ -93,16 +114,19 @@ void* connection_handler(client* connclient)
 			memset(connclient->name, 0, 20);
 			strncpy(connclient->name, (inbuf+6), 19);
 			sprintf(outbuf, "%s changed name to %s\n",oldname, connclient->name);
+			printf("%s", outbuf);
 		}
 		else
 		{
 			sprintf(outbuf, "%s:\t%s\n",connclient->name, inbuf);
 		}
 		send_all(outbuf);
+		printf("asd\n");
 	}
 	close(connclient->clientfd);
-	free(connclient);
 	printf("%s closed connection.\n", connclient->name);
+	clientList_drop(connclient->userid);
+	clients--;
 	return NULL;
 }
 
@@ -123,15 +147,7 @@ void* socket_initializer(int* sockfd)
 			close(acctfd);
 			continue;
 		}
-		client* newclient = malloc(sizeof(client));
-		newclient->userid = userid;
-		newclient->clientfd = acctfd;
-		newclient->addr = clientaddr;
-		sprintf(newclient->name, "%d", newclient->userid);
-		userid++;
-		clients++;
-		printf("Creating new thread for client with user id %d\n", (newclient->userid));
-		if(!(add_client(newclient))) printf("ERROR WHEN ADDING USER TO CLIENTARRAY\n");
+		client* newclient = clientList_add(acctfd, clientaddr);
 		pthread_create(&pth, NULL, (void *)&connection_handler, newclient);
 		sleep(1);
 	}
@@ -141,6 +157,8 @@ void* socket_initializer(int* sockfd)
 int main()
 {
 	int sockfd;
+	cl.first = NULL;
+	cl.last = NULL;
 	struct sockaddr_in servaddr;
 	pthread_t pts;
 	char input[100];
@@ -174,7 +192,7 @@ int main()
 		if(strstr(input, "help") != NULL) printf("Possible commands:\nhelp\tShow this help screen\nstatus\tShow server status\nquit\tClose the server\n");
 		else if(strstr(input, "status") != NULL) printf("Current users: %d\nRunning on port: %d\n", clients, port);
 		else if(strstr(input, "quit") != NULL) break;
-		else printf("invalid input.");
+		else printf("invalid input.\n");
 	} while(1);
 
 	pthread_cancel(pts);
