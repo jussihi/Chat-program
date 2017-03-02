@@ -11,19 +11,16 @@
 #include <semaphore.h>
 #include "server.h"
 
-#define MAXCLIENT 40
 #define BUFFER 1000
-
 
 static int clients = 0;
 static int userid = 100;
 static int port = 5555;
 clientList cl;
 
-
 client* clientList_add(int clientfd, struct sockaddr_in clientaddr)
 {
-	client* newclient = malloc(sizeof(client));
+	client* newclient = calloc(1, sizeof(client));
 	if(!newclient)
 	{
 		return NULL;
@@ -32,7 +29,6 @@ client* clientList_add(int clientfd, struct sockaddr_in clientaddr)
 	newclient->userid = userid;
 	newclient->clientfd = clientfd;
 	newclient->addr = clientaddr;
-	newclient->next = NULL;
 	sprintf(newclient->name, "%d", newclient->userid);
 	userid++;
 	clients++;
@@ -101,8 +97,8 @@ void* connection_handler(client* connclient)
 {
 	char outbuf[BUFFER];
 	char inbuf[BUFFER];
-
 	int n;
+
 	while((n = read(connclient->clientfd, inbuf, sizeof(inbuf) - 1)) > 0)
 	{
 		inbuf[n] = 0;
@@ -121,7 +117,6 @@ void* connection_handler(client* connclient)
 			sprintf(outbuf, "%s:\t%s\n",connclient->name, inbuf);
 		}
 		send_all(outbuf);
-		printf("asd\n");
 	}
 	close(connclient->clientfd);
 	printf("%s closed connection.\n", connclient->name);
@@ -186,14 +181,14 @@ int main()
 	
 	pthread_create(&pts, NULL, (void *)&socket_initializer, &sockfd);
 	printf("SERVER CREATION SUCCESSFUL. For help, type 'help' and press ENTER.\n");
-	do
+	while(1)
 	{
 		scanf("%s", (char*)&input);
 		if(strstr(input, "help") != NULL) printf("Possible commands:\nhelp\tShow this help screen\nstatus\tShow server status\nquit\tClose the server\n");
 		else if(strstr(input, "status") != NULL) printf("Current users: %d\nRunning on port: %d\n", clients, port);
 		else if(strstr(input, "quit") != NULL) break;
 		else printf("invalid input.\n");
-	} while(1);
+	}
 
 	pthread_cancel(pts);
 	close(sockfd);
