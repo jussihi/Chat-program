@@ -86,7 +86,7 @@ int main(void)
 			if(strcmp(buffer, "/help") == 0)
 			{
 				waddch(output, '\n');
-				waddstr(output, "Possible commands:\n\n/help\t\t\t\tShow this help screen\n/connect [server]:[ip]\t\tConnect to server. For example:\n/connect 127.0.0.1:5555\n/name [newname]\t\t\tSet new username\n");
+				waddstr(output, "Possible commands:\n\n/help\t\t\t\tShow this help screen\n/connect [server]:[ip]\t\tConnect to server. For example:\n/connect 127.0.0.1:5555\n/name [newname]\t\t\tSet new username\n/active\t\t\t\tShow active users on current server\n");
 			}
 			else if(strncmp(buffer, "/connect", 8) == 0)
 			{

@@ -70,6 +70,17 @@ void send_whisper(char* msg, int send_uid, int recv_uid)
 	return;
 }
 
+void send_userlist(client* connclient)
+{
+	char output[BUFFER];
+	sprintf(output, "List of active users:\n");
+	for(client* tmp = cl.first; tmp != NULL; tmp = tmp->next)
+	{
+		sprintf(output, "%s%s\n", output, tmp->name);
+	}
+	write(connclient->clientfd, output, strlen(output));
+}
+
 void send_priv_serv(char* msg, int uid)
 {
 	for(client* tmp = cl.first; tmp!=NULL; tmp = tmp->next)
@@ -81,8 +92,6 @@ void send_priv_serv(char* msg, int uid)
 	}
 }
 
-
-
 //broadcast a message to every client
 void send_all(char* msg)
 {
@@ -91,7 +100,6 @@ void send_all(char* msg)
 		write(tmp->clientfd, msg, strlen(msg));
 	}
 }
-
 
 void* connection_handler(client* connclient)
 {
@@ -112,6 +120,11 @@ void* connection_handler(client* connclient)
 			sprintf(outbuf, "%s changed name to %s\n",oldname, connclient->name);
 			printf("%s", outbuf);
 		}
+		else if(strncmp(inbuf, "/active", 7) == 0)
+		{
+			send_userlist(connclient);
+			continue;
+		}
 		else
 		{
 			sprintf(outbuf, "%s:\t%s\n",connclient->name, inbuf);
@@ -125,7 +138,6 @@ void* connection_handler(client* connclient)
 	return NULL;
 }
 
-
 void* socket_initializer(int* sockfd)
 {
 	int acctfd;
@@ -136,12 +148,6 @@ void* socket_initializer(int* sockfd)
 	{
 		socklen_t clientlen = sizeof(clientaddr);
 		acctfd = accept(*sockfd, (struct sockaddr*)&clientaddr, &clientlen);
-		if(clients == MAXCLIENT - 1)
-		{
-			printf("Maximum number of clients reached, dropping new connection.\n");
-			close(acctfd);
-			continue;
-		}
 		client* newclient = clientList_add(acctfd, clientaddr);
 		pthread_create(&pth, NULL, (void *)&connection_handler, newclient);
 		sleep(1);

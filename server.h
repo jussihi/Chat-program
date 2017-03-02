@@ -26,6 +26,8 @@ void clientList_drop(int id);
 
 void send_whisper(char* msg, int send_uid, int recv_uid);
 
+void send_userlist(client* connclient);
+
 void send_priv_serv(char* msg, int uid);
 
 void send_all(char* msg);
