@@ -30,6 +30,7 @@ client* clientList_add(int clientfd, struct sockaddr_in clientaddr)
 	newclient->clientfd = clientfd;
 	newclient->addr = clientaddr;
 	sprintf(newclient->name, "%d", newclient->userid);
+	newclient->pthp = calloc(1, sizeof(pthread_t));
 	userid++;
 	clients++;
 	printf("Creating new thread for client with user id %d\n", (newclient->userid));
@@ -43,23 +44,44 @@ client* clientList_add(int clientfd, struct sockaddr_in clientaddr)
 
 void clientList_drop(int id)
 {
+	void* ret = NULL;
 	client* c = cl.first;
 	client* p = NULL;
 	while (c)
 	{
 		if (c->userid == id)
 		{
-		    if (p)
-		        p->next = c->next;
-		    if (c == cl.first)
-		        cl.first = c->next;
-		    if (p && p->next == NULL)
-		        cl.last = p;
-		    free(c);
-		    return;
+			if (p)
+		        	p->next = c->next;
+			if (c == cl.first)
+		        	cl.first = c->next;
+			if (p && p->next == NULL)
+				cl.last = p;
+			pthread_cancel(*(c->pthp));
+			pthread_join(*(c->pthp), &ret);
+			free(c->pthp);
+			free(c);
+			return;
 		}
 		p = c;
 		c = c->next;
+	}
+	return;
+}
+
+void clientList_empty()
+{
+	void* ret = NULL;
+	client* c = cl.first;
+	client* p = NULL;
+	while (c)
+	{
+		p = c;
+		c = c->next;
+		pthread_cancel(*(p->pthp));
+		pthread_join(*(p->pthp), &ret);
+		free(p->pthp);
+		free(p);
 	}
 	return;
 }
@@ -142,14 +164,18 @@ void* socket_initializer(int* sockfd)
 {
 	int acctfd;
 	struct sockaddr_in clientaddr;
-	pthread_t pth;
 
 	while(1)
 	{
+		//pthread_t* pthp = calloc(1, sizeof(pthread_t));
+		printf("listening for thread\n");
 		socklen_t clientlen = sizeof(clientaddr);
 		acctfd = accept(*sockfd, (struct sockaddr*)&clientaddr, &clientlen);
 		client* newclient = clientList_add(acctfd, clientaddr);
-		pthread_create(&pth, NULL, (void *)&connection_handler, newclient);
+		pthread_create(newclient->pthp, NULL, (void *)&connection_handler, newclient);
+		printf("creating new thread with &pthp = %p\n", newclient->pthp);
+		printf("Calloced memory: %d\n", (int)*(newclient->pthp));
+		if(!*(newclient->pthp)) free(newclient->pthp);
 		sleep(1);
 	}
 	close(acctfd);
@@ -163,6 +189,7 @@ int main()
 	struct sockaddr_in servaddr;
 	pthread_t pts;
 	char input[100];
+	void* ret = NULL;
 	
 	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
 	{
@@ -196,8 +223,9 @@ int main()
 		else if(strstr(input, "quit") != NULL) break;
 		else printf("invalid input.\n");
 	}
-
 	pthread_cancel(pts);
+	pthread_join(pts, &ret);
+	clientList_empty();
 	close(sockfd);
 	printf("Server closed.\n");
 	return 0;

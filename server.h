@@ -11,6 +11,7 @@ struct client_t
 	int userid;
 	struct sockaddr_in addr;
 	int clientfd;
+	pthread_t* pthp;
 	client* next;
 };
 
@@ -23,6 +24,8 @@ struct clientlist
 client* clientList_add(int clientfd, struct sockaddr_in clientaddr);
 
 void clientList_drop(int id);
+
+void clientList_empty();
 
 void send_whisper(char* msg, int send_uid, int recv_uid);
 
