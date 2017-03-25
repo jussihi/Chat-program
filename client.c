@@ -37,6 +37,7 @@ void* message_listener(int* sockfd)
 		}
 		else 
 		{
+			err++;
 			if(err > 20)
 			{
 				connection_flag = -1;

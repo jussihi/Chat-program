@@ -1,5 +1,5 @@
-#ifndef QUEUE_H
-#define QUEUE_H
+#ifndef CHATSERVER_H
+#define CHATSERVER_H
 
 
 typedef struct client_t client;
