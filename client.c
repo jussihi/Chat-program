@@ -50,7 +50,12 @@ void* message_listener(int* sockfd)
 
 void close_connection(pthread_t* ptmsg, int* sockfd)
 {
-	if(ptmsg != NULL) pthread_kill(*ptmsg, 0);
+	void* ret = NULL;
+	if(ptmsg != NULL)
+	{
+		pthread_cancel(*ptmsg);
+		pthread_join(*ptmsg, &ret);
+	}
 	if(*sockfd != 0) shutdown(*sockfd, 0);
 	if(*sockfd != 0) close(*sockfd);
 	connection_flag = 0;
@@ -78,6 +83,7 @@ int main(void)
 	int port;
 	char portc[10];
 	pthread_t ptmsg;
+	void* ret = NULL;
 	
 	while (1)
 	{
@@ -138,7 +144,11 @@ int main(void)
 			}
 			else if(strcmp(buffer, "/quit") == 0)
 			{
-				if(ptmsg != 0) pthread_kill(ptmsg, 0);
+				if(ptmsg != 0)
+				{
+					pthread_cancel(ptmsg);
+					pthread_join(ptmsg, &ret);
+				}
 				if(sockfd != 0) close(sockfd);
 				connection_flag = 0;
 				endwin();
