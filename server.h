@@ -4,6 +4,8 @@
 
 typedef struct client_t client;
 typedef struct clientlist clientList;
+typedef struct channel_t channel;
+typedef struct channellist channellList;
 
 struct client_t
 {
@@ -11,15 +13,39 @@ struct client_t
 	int userid;
 	struct sockaddr_in addr;
 	int clientfd;
+	channel* channel;
 	pthread_t* pthp;
 	client* next;
 };
 
 struct clientlist
 {
-    client* first;
-    client* last;
+	client* first;
+	client* last;
 };
+
+struct channel_t
+{
+	char name[21];
+	unsigned int users;
+	client** clients;
+	client** admins;
+	channel* next;
+};
+
+struct channellist
+{
+	channel* first;
+	channel* last;
+};
+
+channel* find_channel(const char* name);
+
+channel* init_channel(const char* name);
+
+int join_channel(const char* chn, client* cl);
+
+int leave_channel(client* cl);
 
 client* clientList_add(int clientfd, struct sockaddr_in clientaddr);
 

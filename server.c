@@ -12,19 +12,109 @@
 #include "server.h"
 
 #define BUFFER 1000
+#define MAX_USERS_CHANNEL 100
 
 static int clients = 0;
 static int userid = 100;
 static int port = 5555;
 clientList cl;
+channellList chl;
+
+channel* find_channel(const char* name)
+{
+	channel* ch = chl.first;
+	while(ch)
+	{
+		if(strcmp(ch->name, name) == 0) return ch;
+		ch = ch->next;
+	}
+	return NULL;
+}
+
+channel* init_channel(const char* name)
+{
+	channel* newchannel = calloc(1, sizeof(channel));
+	if(!newchannel)
+	{
+		printf("ERROR WHEN ADDING CHANNEL TO CHANNEL ARRAY\n");
+		return NULL;
+	}
+	strncpy(newchannel->name, name, 20);
+	newchannel->name[20] = 0;
+	newchannel->users = 0;
+	if(chl.last)
+		chl.last->next = newchannel;
+	chl.last = newchannel;
+	if(!chl.first)
+		chl.first = chl.last;
+	newchannel->clients = calloc(1, sizeof(client));
+	newchannel->admins = calloc(1, sizeof(client));
+	return newchannel;
+}
+
+int join_channel(const char* chn, client* cl)
+{
+	if(cl->channel)
+	{
+		send_priv_serv("You are already connected to a channel! Please use /leave\n", cl->userid);
+		return 1;
+	}
+	channel* ch = find_channel(chn);
+	if(!ch)
+	{
+		send_priv_serv("Channel does not exist. You can create such channel with /create\n", cl->userid);
+		return 1;
+	}
+	int n = 0;
+	client** p = ch->clients;
+	while(*p)
+	{
+		p++;
+	}
+	n = p - ch->clients;
+	ch->clients = realloc(ch->clients, (n+2) * sizeof(client*));
+	ch->clients[n] = cl;
+	ch->clients[n+1] = NULL;
+	cl->channel = ch;
+	return 0;
+}
+
+int leave_channel(client* cl)
+{
+	if(!cl->channel)
+	{
+		send_priv_serv("You are not connected to a channel!\n", cl->userid);
+		return 1;
+	}
+	int n = 0;
+	int j = -1;
+	client** p = cl->channel->clients;
+	while(*p)
+	{
+		p++;
+		n++;
+		if(*p == cl) j = (n-1);
+	}
+	if(j == -1)
+	{
+		send_priv_serv("Unknown error when exiting channel!\n", cl->userid);
+		return 1;
+	}
+	client** h = realloc(cl->channel->clients, n * sizeof(client*));
+	memcpy(h+j, cl->channel->clients + j + 1, (n-j)*sizeof(client*));
+	free(cl->channel->clients);
+	cl->channel->clients = h;
+	cl->channel = NULL;
+	return 0;
+}
 
 client* clientList_add(int clientfd, struct sockaddr_in clientaddr)
 {
 	client* newclient = calloc(1, sizeof(client));
 	if(!newclient)
 	{
+		printf("ERROR WHEN ADDING USER TO CLIENT ARRAY\n");
 		return NULL;
-		printf("ERROR WHEN ADDING USER TO CLIENTARRAY\n");
 	}
 	newclient->userid = userid;
 	newclient->clientfd = clientfd;
@@ -123,6 +213,11 @@ void send_all(char* msg)
 	}
 }
 
+void send_all_channel(const char* msg, channel* ch)
+{
+	return;
+}
+
 void* connection_handler(client* connclient)
 {
 	char outbuf[BUFFER];
@@ -186,6 +281,8 @@ int main()
 	int sockfd;
 	cl.first = NULL;
 	cl.last = NULL;
+	chl.first = NULL;
+	chl.last = NULL;
 	struct sockaddr_in servaddr;
 	pthread_t pts;
 	char input[100];
