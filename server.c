@@ -12,13 +12,49 @@
 #include "server.h"
 
 #define BUFFER 1000
-#define MAX_USERS_CHANNEL 100
 
 static int clients = 0;
 static int userid = 100;
 static int port = 5555;
 clientList cl;
 channellList chl;
+char* welcome = NULL;
+
+char* load_welcome(const char* filename)
+{
+	FILE *fp;
+	long fsize;
+	char *buffer;
+
+	fp = fopen(filename, "r");
+	if(!fp)
+	{
+		perror(filename);
+		return NULL;
+	}
+	fseek(fp, 0L, SEEK_END);
+	fsize = ftell(fp);
+	rewind(fp);
+
+	buffer = calloc( 1, (fsize+1) * sizeof(char));
+	if(!buffer)
+	{
+		fclose(fp);
+		fputs("memory alloc failed.",stderr);
+		return NULL;
+	}
+
+	if(1 != fread(buffer, fsize, 1, fp))
+	{
+		fclose(fp);
+		free(buffer);
+		fputs("entire read fails",stderr);
+		return NULL;
+	}
+
+	fclose(fp);
+	return buffer;
+}
 
 channel* find_channel(const char* name)
 {
@@ -128,7 +164,7 @@ client* clientList_add(int clientfd, struct sockaddr_in clientaddr)
 		cl.last->next = newclient;
 	cl.last = newclient;
 	if (!cl.first)
-	cl.first = cl.last;
+		cl.first = cl.last;
 	return newclient;
 }
 
@@ -147,10 +183,11 @@ void clientList_drop(int id)
 		        	cl.first = c->next;
 			if (p && p->next == NULL)
 				cl.last = p;
-			pthread_cancel(*(c->pthp));
-			pthread_join(*(c->pthp), &ret);
+			//pthread_cancel(*(c->pthp)); //STILL LOSING 272 bytes memory per disconnected client
+			pthread_join(*(c->pthp), &ret);  //joining thread inside itself doesn't seem to work
 			free(c->pthp);
 			free(c);
+			clients--;
 			return;
 		}
 		p = c;
@@ -224,6 +261,8 @@ void* connection_handler(client* connclient)
 	char inbuf[BUFFER];
 	int n;
 
+	if(welcome) send_priv_serv(welcome, connclient->userid);
+
 	while((n = read(connclient->clientfd, inbuf, sizeof(inbuf) - 1)) > 0)
 	{
 		inbuf[n] = 0;
@@ -251,7 +290,6 @@ void* connection_handler(client* connclient)
 	close(connclient->clientfd);
 	printf("%s closed connection.\n", connclient->name);
 	clientList_drop(connclient->userid);
-	clients--;
 	return NULL;
 }
 
@@ -259,7 +297,7 @@ void* socket_initializer(int* sockfd)
 {
 	int acctfd;
 	struct sockaddr_in clientaddr;
-
+	
 	while(1)
 	{
 		//pthread_t* pthp = calloc(1, sizeof(pthread_t));
@@ -287,6 +325,7 @@ int main()
 	pthread_t pts;
 	char input[100];
 	void* ret = NULL;
+	welcome = load_welcome("welcome.txt");
 	
 	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
 	{
@@ -324,6 +363,7 @@ int main()
 	pthread_join(pts, &ret);
 	clientList_empty();
 	close(sockfd);
+	if(welcome) free(welcome);
 	printf("Server closed.\n");
 	return 0;
 }

@@ -39,6 +39,8 @@ struct channellist
 	channel* last;
 };
 
+char* load_welcome(const char* filename);
+
 channel* find_channel(const char* name);
 
 channel* init_channel(const char* name);
