@@ -11,7 +11,7 @@ struct client_t
 {
 	char name[20];
 	int userid;
-	struct sockaddr_in addr;
+	struct sockaddr_in6 addr;
 	int clientfd;
 	channel* channel;
 	pthread_t* pthp;
@@ -49,7 +49,7 @@ int join_channel(const char* chn, client* cl);
 
 int leave_channel(client* cl);
 
-client* clientList_add(int clientfd, struct sockaddr_in clientaddr);
+client* clientList_add(int clientfd, struct sockaddr_in6 clientaddr);
 
 void clientList_drop(int id);
 

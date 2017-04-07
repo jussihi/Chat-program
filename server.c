@@ -144,7 +144,7 @@ int leave_channel(client* cl)
 	return 0;
 }
 
-client* clientList_add(int clientfd, struct sockaddr_in clientaddr)
+client* clientList_add(int clientfd, struct sockaddr_in6 clientaddr)
 {
 	client* newclient = calloc(1, sizeof(client));
 	if(!newclient)
@@ -296,7 +296,7 @@ void* connection_handler(client* connclient)
 void* socket_initializer(int* sockfd)
 {
 	int acctfd;
-	struct sockaddr_in clientaddr;
+	struct sockaddr_in6 clientaddr;
 	
 	while(1)
 	{
@@ -321,21 +321,22 @@ int main()
 	cl.last = NULL;
 	chl.first = NULL;
 	chl.last = NULL;
-	struct sockaddr_in servaddr;
+	struct sockaddr_in6 servaddr;
 	pthread_t pts;
 	char input[100];
 	void* ret = NULL;
 	welcome = load_welcome("welcome.txt");
 	
-	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+	if ((sockfd = socket(AF_INET6, SOCK_STREAM, 0)) < 0)
 	{
         	perror("socket error");
         	return 1;
     	}
 	
 	memset(&servaddr, 0, sizeof(servaddr));
-	servaddr.sin_family = AF_INET;
-	servaddr.sin_port = htons(port);
+	servaddr.sin6_family = AF_INET6;
+	servaddr.sin6_port = htons(port);
+	servaddr.sin6_addr = in6addr_any;
 	
 	if(bind(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0)
 	{
