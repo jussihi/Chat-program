@@ -39,6 +39,8 @@ struct channellist
 	channel* last;
 };
 
+int check_str_valid(const char* str);
+
 char* load_welcome(const char* filename);
 
 channel* find_channel(const char* name);
@@ -55,9 +57,11 @@ void clientList_drop(int id);
 
 void clientList_empty();
 
-void send_whisper(char* msg, int send_uid, int recv_uid);
+void send_whisper(char* msg, const char* sendname, client* recv);
 
 void send_userlist(client* connclient);
+
+void send_channellist(client* connclient);
 
 void send_priv_serv(char* msg, int uid);
 

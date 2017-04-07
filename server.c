@@ -1,5 +1,6 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
@@ -19,6 +20,22 @@ static int port = 5555;
 clientList cl;
 channellList chl;
 char* welcome = NULL;
+
+
+/*
+function to check for invalid char arrays
+(arrays that contain non-alphanumeric chars)
+*/
+int check_str_valid(const char* str)
+{
+	int flag = 0;
+	if(!str) return -1;
+	for(int i = 0; i < strlen(str); i++)
+	{
+		if(!isalnum(str[i])) flag = 1;
+	}
+	return flag;
+}
 
 char* load_welcome(const char* filename)
 {
@@ -87,6 +104,7 @@ channel* init_channel(const char* name)
 	newchannel->admins = calloc(1, sizeof(client));
 	return newchannel;
 }
+
 
 int join_channel(const char* chn, client* cl)
 {
@@ -168,6 +186,18 @@ client* clientList_add(int clientfd, struct sockaddr_in6 clientaddr)
 	return newclient;
 }
 
+client* searchclient(const char* name)
+{
+	for(client* tmp = cl.first; tmp!=NULL; tmp = tmp->next)
+	{
+		if(strcmp(tmp->name, name) == 0)
+		{
+			return tmp;
+		}
+	}
+	return NULL;
+}
+
 void clientList_drop(int id)
 {
 	void* ret = NULL;
@@ -214,9 +244,11 @@ void clientList_empty()
 }
 
 
-void send_whisper(char* msg, int send_uid, int recv_uid)
+void send_whisper(char* msg, const char* sendname, client* recv)
 {
-	return;
+	char outbuf[BUFFER];
+	sprintf(outbuf, "%s (W):\t%s\n", sendname, msg);
+	write(recv->clientfd, outbuf, strlen(outbuf));
 }
 
 void send_userlist(client* connclient)
@@ -224,6 +256,18 @@ void send_userlist(client* connclient)
 	char output[BUFFER];
 	sprintf(output, "List of active users:\n");
 	for(client* tmp = cl.first; tmp != NULL; tmp = tmp->next)
+	{
+		sprintf(output, "%s%s\n", output, tmp->name);
+	}
+	write(connclient->clientfd, output, strlen(output));
+}
+
+void send_channellist(client* connclient)
+{
+	char output[BUFFER];
+	sprintf(output, "List of active channels:\n");
+	if(chl.first == NULL) sprintf(output, "%sNo active channels yet! Please make one.\n", output);
+	for(channel* tmp = chl.first; tmp != NULL; tmp = tmp->next)
 	{
 		sprintf(output, "%s%s\n", output, tmp->name);
 	}
@@ -252,7 +296,10 @@ void send_all(char* msg)
 
 void send_all_channel(const char* msg, channel* ch)
 {
-	return;
+	for(client* tmp = cl.first; tmp != NULL; tmp = tmp->next)
+	{
+		if(tmp->channel == ch) write(tmp->clientfd, msg, strlen(msg));
+	}
 }
 
 void* connection_handler(client* connclient)
@@ -268,24 +315,87 @@ void* connection_handler(client* connclient)
 		inbuf[n] = 0;
 		if(strncmp(inbuf, "/name ", 6) == 0)
 		{
-			char oldname[20];
-			strncpy(oldname, connclient->name, 19);
-			oldname[19] = 0;
-			memset(connclient->name, 0, 20);
-			strncpy(connclient->name, (inbuf+6), 19);
-			sprintf(outbuf, "%s changed name to %s\n",oldname, connclient->name);
-			printf("%s", outbuf);
+			if(check_str_valid(inbuf+6) != 0) send_priv_serv("Invalid name, please use only alphanumeric characters\n", connclient->userid);
+			else
+			{
+				char oldname[20];
+				strncpy(oldname, connclient->name, 19);
+				oldname[19] = 0;
+				memset(connclient->name, 0, 20);
+				strncpy(connclient->name, (inbuf+6), 19);
+				sprintf(outbuf, "%s changed name to %s\n",oldname, connclient->name);
+				printf("%s", outbuf);
+				send_all(outbuf);
+			}
+			continue;
 		}
 		else if(strncmp(inbuf, "/active", 7) == 0)
 		{
 			send_userlist(connclient);
 			continue;
 		}
+		else if(strncmp(inbuf, "/channels", 9) == 0)
+		{
+			send_channellist(connclient);
+			continue;
+		}
+		else if(strncmp(inbuf, "/join ", 6) == 0)
+		{
+			channel* joinc = find_channel(inbuf+6);
+			if(joinc == NULL) send_priv_serv("Cannot find specified channel.\n", connclient->userid);
+			else
+			{
+				connclient->channel = joinc;
+				send_priv_serv("Channel joined.\n", connclient->userid);
+			}
+			continue;
+		}
+		else if(strncmp(inbuf, "/create ", 8) == 0)
+		{
+			if(check_str_valid(inbuf+8) != 0) send_priv_serv("Invalid name, please use only alphanumeric characters\n", connclient->userid);
+			else
+			{
+				char channelname[21];
+				strncpy(channelname, (inbuf+8), 20);
+				channelname[20] = 0;
+				channel* new = init_channel(channelname);
+				connclient->channel = new;
+				send_priv_serv("Channel created and joined.\n", connclient->userid);
+			}
+			continue;
+		}
+		else if(strncmp(inbuf, "/w ", 3) == 0)
+		{
+			char receiver[21];
+			char message[100];
+			sscanf(inbuf, "/w %99[^ ] %99[^\n]", receiver, message);
+			client* recv = searchclient(receiver);
+			if(recv != NULL)
+			{
+				send_whisper(message, connclient->name, recv);
+				continue;
+			}
+			send_priv_serv("Cannot find specified user!\n", connclient->userid);
+			continue;
+		}
+		else if(strncmp(inbuf, "/", 1) == 0)
+		{
+			send_priv_serv("Invalid command!\n", connclient->userid);
+			continue;
+		}
 		else
 		{
-			sprintf(outbuf, "%s:\t%s\n",connclient->name, inbuf);
+			if(connclient->channel == NULL)
+			{
+				send_priv_serv("You have not joined a channel yet! Please join a channel or create a new channel", connclient->userid);
+				
+			}
+			else
+			{
+				sprintf(outbuf, "%s:\t%s\n",connclient->name, inbuf);
+				send_all_channel(outbuf, connclient->channel);
+			}
 		}
-		send_all(outbuf);
 	}
 	close(connclient->clientfd);
 	printf("%s closed connection.\n", connclient->name);
