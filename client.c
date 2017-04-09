@@ -83,7 +83,6 @@ int main(void)
 	int port;
 	char portc[10];
 	pthread_t ptmsg;
-	void* ret = NULL;
 	
 	while (1)
 	{
@@ -93,7 +92,7 @@ int main(void)
 			if(strcmp(buffer, "/help") == 0)
 			{
 				waddch(output, '\n');
-				waddstr(output, "Possible commands:\n\n/help\t\t\t\tShow this help screen\n/connect [server]:[ip]\t\tConnect to server. For example:\n/connect 127.0.0.1:5555\n/name [newname]\t\t\tSet new username\n/active\t\t\t\tShow active users on current server\n");
+				waddstr(output, "Possible commands:\n\n/help\t\t\t\tShow this help screen\n/connect [server]:[ip]\t\tConnect to server. For example:\n/connect 127.0.0.1:5555\n/disconnect\t\t\tDisconnect from server\n/name [newname]\t\t\tSet new username\n/active\t\t\t\tShow active users on current server\n/channels\t\t\tShow active channels on server\n/join [channel]\t\t\tJoin a channel\n/create [channel]\t\tCreate new channel with name [channel]\n/w [username] [message]\t\tWhisper a message to a user\n/quit\t\t\t\tQuit program\n");
 			}
 			else if(strncmp(buffer, "/connect", 8) == 0)
 			{
@@ -144,13 +143,10 @@ int main(void)
 			}
 			else if(strcmp(buffer, "/quit") == 0)
 			{
-				if(ptmsg != 0)
+				if(connection_flag != 0)
 				{
-					pthread_cancel(ptmsg);
-					pthread_join(ptmsg, &ret);
+					close_connection(&ptmsg, &sockfd);
 				}
-				if(sockfd != 0) close(sockfd);
-				connection_flag = 0;
 				endwin();
 				return 0;
 			}

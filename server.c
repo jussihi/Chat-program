@@ -192,6 +192,7 @@ client* searchclient(const char* name)
 	{
 		if(strcmp(tmp->name, name) == 0)
 		{
+			printf("loytyi\n");
 			return tmp;
 		}
 	}
@@ -238,6 +239,21 @@ void clientList_empty()
 		pthread_cancel(*(p->pthp));
 		pthread_join(*(p->pthp), &ret);
 		free(p->pthp);
+		free(p);
+	}
+	return;
+}
+
+void channelList_empty()
+{
+	channel* c = chl.first;
+	channel* p = NULL;
+	while (c)
+	{
+		p = c;
+		c = c->next;
+		free(p->clients);
+		free(p->admins);
 		free(p);
 	}
 	return;
@@ -315,14 +331,14 @@ void* connection_handler(client* connclient)
 		inbuf[n] = 0;
 		if(strncmp(inbuf, "/name ", 6) == 0)
 		{
-			if(check_str_valid(inbuf+6) != 0) send_priv_serv("Invalid name, please use only alphanumeric characters\n", connclient->userid);
+			if(check_str_valid(inbuf+6) != 0 || searchclient(inbuf+6) != NULL) send_priv_serv("Invalid name or name already in use,\nplease use only alphanumeric characters\n", connclient->userid);
 			else
 			{
-				char oldname[20];
-				strncpy(oldname, connclient->name, 19);
-				oldname[19] = 0;
-				memset(connclient->name, 0, 20);
-				strncpy(connclient->name, (inbuf+6), 19);
+				char oldname[11];
+				strncpy(oldname, connclient->name, 10);
+				oldname[10] = 0;
+				memset(connclient->name, 0, 11);
+				strncpy(connclient->name, (inbuf+6), 10);
 				sprintf(outbuf, "%s changed name to %s\n",oldname, connclient->name);
 				printf("%s", outbuf);
 				send_all(outbuf);
@@ -342,7 +358,7 @@ void* connection_handler(client* connclient)
 		else if(strncmp(inbuf, "/join ", 6) == 0)
 		{
 			channel* joinc = find_channel(inbuf+6);
-			if(joinc == NULL) send_priv_serv("Cannot find specified channel.\n", connclient->userid);
+			if(joinc == NULL) send_priv_serv("Cannot find no especified channel.\n", connclient->userid);
 			else
 			{
 				connclient->channel = joinc;
@@ -352,7 +368,7 @@ void* connection_handler(client* connclient)
 		}
 		else if(strncmp(inbuf, "/create ", 8) == 0)
 		{
-			if(check_str_valid(inbuf+8) != 0) send_priv_serv("Invalid name, please use only alphanumeric characters\n", connclient->userid);
+			if(check_str_valid(inbuf+8) != 0 || find_channel(inbuf+8) != NULL) send_priv_serv("Invalid name or name already in use,\nplease use only alphanumeric characters\n", connclient->userid);
 			else
 			{
 				char channelname[21];
@@ -416,8 +432,6 @@ void* socket_initializer(int* sockfd)
 		acctfd = accept(*sockfd, (struct sockaddr*)&clientaddr, &clientlen);
 		client* newclient = clientList_add(acctfd, clientaddr);
 		pthread_create(newclient->pthp, NULL, (void *)&connection_handler, newclient);
-		printf("creating new thread with &pthp = %p\n", newclient->pthp);
-		printf("Calloced memory: %d\n", (int)*(newclient->pthp));
 		if(!*(newclient->pthp)) free(newclient->pthp);
 		sleep(1);
 	}
@@ -473,6 +487,7 @@ int main()
 	pthread_cancel(pts);
 	pthread_join(pts, &ret);
 	clientList_empty();
+	channelList_empty();
 	close(sockfd);
 	if(welcome) free(welcome);
 	printf("Server closed.\n");
